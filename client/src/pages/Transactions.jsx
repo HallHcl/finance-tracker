@@ -1,12 +1,20 @@
 import API from "../api";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 function Transactions({ transactions, fetchTransactions }) {
+
+  const navigate = useNavigate(); // 🔥 เพิ่ม
+
   const handleDelete = async (id) => {
     try {
       await API.delete(`/transactions/${id}`);
-      fetchTransactions(); // refresh จาก DB
+
+      toast.success("Deleted successfully");
+
+      await fetchTransactions();
     } catch (err) {
-      console.error(err);
+      toast.error("Delete failed");
     }
   };
 
@@ -39,6 +47,15 @@ function Transactions({ transactions, fetchTransactions }) {
                   {t.type === "income" ? "+" : "-"}฿ {t.amount}
                 </p>
 
+                {/* 🔥 EDIT */}
+                <button
+                  onClick={() => navigate(`/edit/${t._id}`)}
+                  className="text-blue-500"
+                >
+                  Edit
+                </button>
+
+                {/* DELETE */}
                 <button
                   onClick={() => handleDelete(t._id)}
                   className="text-red-500"

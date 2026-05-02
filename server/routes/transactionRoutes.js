@@ -36,4 +36,37 @@ router.delete("/:id", auth, async (req, res) => {
   res.json({ message: "Deleted" });
 });
 
+// 🔐 GET ONE (เอาไป pre-fill)
+router.get("/:id", auth, async (req, res) => {
+  const transaction = await Transaction.findOne({
+    _id: req.params.id,
+    user: req.user.id,
+  });
+
+  if (!transaction) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
+  res.json(transaction);
+});
+
+
+// 🔐 UPDATE
+router.put("/:id", auth, async (req, res) => {
+  const updated = await Transaction.findOneAndUpdate(
+    {
+      _id: req.params.id,
+      user: req.user.id,
+    },
+    req.body,
+    { new: true }
+  );
+
+  if (!updated) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
+  res.json(updated);
+});
+
 module.exports = router;

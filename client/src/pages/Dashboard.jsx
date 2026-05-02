@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import API from "../api";
+import { toast } from "react-toastify";
 import SummaryCard from "../components/SummaryCard";
 import TransactionList from "../components/TransactionList";
 
@@ -10,8 +12,49 @@ import {
 
 function Dashboard({ transactions }) {
 
+  const user = JSON.parse(localStorage.getItem("user"));
+
   // 🔥 budget
-  const [budget, setBudget] = useState(0);
+  const [budget, setBudget] = useState("");
+
+  // 🔥 debounce
+  const [debounceTimer, setDebounceTimer] = useState(null);
+
+  // 🔥 โหลด budget
+  useEffect(() => {
+    const fetchBudget = async () => {
+      try {
+        const res = await API.get("/auth/budget");
+        setBudget(res.data.budget ? String(res.data.budget) : "");
+      } catch (err) {
+        console.error("Fetch budget error:", err);
+      }
+    };
+
+    fetchBudget();
+  }, []);
+
+  // 🔥 debounce update
+  const updateBudget = (value) => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        await API.put("/auth/budget", {
+          budget: Number(value),
+        });
+
+        toast.success("Budget saved");
+      } catch (err) {
+        console.error("Update budget error:", err);
+        toast.error("Failed to save budget");
+      }
+    }, 800);
+
+    setDebounceTimer(timer);
+  };
 
   const income = transactions
     .filter(t => t.type === "income")
@@ -23,7 +66,9 @@ function Dashboard({ transactions }) {
 
   const balance = income - expense;
 
-  // 🔥 monthly summary
+  const percent =
+    Number(budget) > 0 ? (expense / Number(budget)) * 100 : 0;
+
   const monthly = {};
 
   transactions.forEach(t => {
@@ -43,14 +88,12 @@ function Dashboard({ transactions }) {
     }
   });
 
-  // 🔥 chart data
   const chartData = Object.entries(monthly).map(([month, data]) => ({
     month,
     income: data.income,
     expense: data.expense,
   }));
 
-  // 🔥 EXPORT CSV
   const exportCSV = () => {
     const headers = [
       "Date",
@@ -89,34 +132,66 @@ function Dashboard({ transactions }) {
   return (
     <div className="p-6 space-y-6">
 
-      {/* 🔥 Summary */}
+      {/* Greeting */}
+      {user && (
+        <h1 className="text-2xl font-bold">
+          Hello, {user.firstName} {user.lastName}
+        </h1>
+      )}
+
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard title="Balance" amount={balance} color="text-green-500" />
         <SummaryCard title="Income" amount={income} color="text-blue-500" />
         <SummaryCard title="Expense" amount={expense} color="text-red-500" />
       </div>
 
-      {/* 🔥 Budget */}
-      <div className="bg-white p-4 rounded-xl shadow">
-        <h2 className="font-bold mb-2">Set Monthly Budget</h2>
+      {/* Budget */}
+      <div className="bg-white p-4 rounded-xl shadow space-y-3">
+        <h2 className="font-bold">Monthly Budget</h2>
 
         <input
           type="number"
           placeholder="Enter budget"
           value={budget}
-          onChange={(e) => setBudget(Number(e.target.value))}
+          onChange={(e) => {
+            setBudget(e.target.value);
+            updateBudget(e.target.value);
+          }}
           className="w-full p-2 border rounded"
         />
+
+        {Number(budget) > 0 && (
+          <>
+            <div className="w-full bg-gray-200 rounded h-4 overflow-hidden">
+              <div
+                className={`h-4 ${
+                  percent < 80
+                    ? "bg-green-500"
+                    : percent < 100
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
+                }`}
+                style={{ width: `${Math.min(percent, 100)}%` }}
+              />
+            </div>
+
+            <p className="text-sm">
+              {expense} / {budget} ({percent.toFixed(1)}%)
+            </p>
+
+            {percent >= 80 && percent < 100 && (
+              <p className="text-yellow-600">⚠️ Approaching budget limit</p>
+            )}
+
+            {percent >= 100 && (
+              <p className="text-red-600">❌ Budget exceeded</p>
+            )}
+          </>
+        )}
       </div>
 
-      {/* 🔥 Alert */}
-      {expense > budget && budget > 0 && (
-        <div className="bg-red-100 text-red-600 p-3 rounded">
-          ⚠️ You exceeded your budget!
-        </div>
-      )}
-
-      {/* 🔥 Export */}
+      {/* Export */}
       <button
         onClick={exportCSV}
         className="bg-black text-white px-4 py-2 rounded"
@@ -124,10 +199,9 @@ function Dashboard({ transactions }) {
         Export CSV
       </button>
 
-      {/* 🔥 Charts */}
+      {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* Bar Chart */}
         <div className="bg-white p-4 rounded-xl shadow">
           <h2 className="font-bold mb-3">Monthly Overview</h2>
 
@@ -143,7 +217,6 @@ function Dashboard({ transactions }) {
           </ResponsiveContainer>
         </div>
 
-        {/* Line Chart */}
         <div className="bg-white p-4 rounded-xl shadow">
           <h2 className="font-bold mb-3">Trend</h2>
 
@@ -162,7 +235,6 @@ function Dashboard({ transactions }) {
 
       </div>
 
-      {/* 🔥 Transaction List */}
       <TransactionList transactions={transactions} />
 
     </div>

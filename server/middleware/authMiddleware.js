@@ -14,7 +14,7 @@ module.exports = function (req, res, next) {
   try {
     const decoded = jwt.verify(token, SECRET);
 
-    req.user = decoded; // 🔥 ใส่ user ไว้ใน request
+    req.user = decoded;
 
     next();
   } catch (err) {

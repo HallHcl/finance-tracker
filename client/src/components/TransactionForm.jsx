@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import API from "../api";
+import { toast } from "react-toastify";
 
-function TransactionForm({ fetchTransactions }) {
+function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
   const [form, setForm] = useState({
     type: "expense",
     amount: "",
@@ -14,6 +15,7 @@ function TransactionForm({ fetchTransactions }) {
 
   const [categories, setCategories] = useState([]);
 
+  // 🔥 โหลด categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -26,6 +28,21 @@ function TransactionForm({ fetchTransactions }) {
 
     fetchCategories();
   }, []);
+
+  // 🔥 preload data (EDIT)
+  useEffect(() => {
+    if (editData) {
+      setForm({
+        type: editData.type || "expense",
+        amount: editData.amount || "",
+        category: editData.category || "",
+        detail: editData.detail || "",
+        date: editData.date ? editData.date.split("T")[0] : "",
+        account: editData.account || "",
+        note: editData.note || "",
+      });
+    }
+  }, [editData]);
 
   const handleChange = (e) => {
     setForm({
@@ -40,22 +57,42 @@ function TransactionForm({ fetchTransactions }) {
     if (!form.amount) return;
 
     try {
-      await API.post("/transactions", form);
-      await fetchTransactions(); // refresh data จาก DB
+      if (editId) {
+        // 🔥 UPDATE
+        await API.put(`/transactions/${editId}`, form);
+        toast.success("Updated successfully");
+      } else {
+        // 🔥 CREATE
+        await API.post("/transactions", form);
+        toast.success("Added successfully");
+      }
+
+      await fetchTransactions();
+
+      if (onSuccess) onSuccess();
+
     } catch (err) {
       console.error(err);
+
+      if (editId) {
+        toast.error("Update failed");
+      } else {
+        toast.error("Add failed");
+      }
     }
 
-    // 🔥 reset form (ต้องมี field ใหม่ด้วย)
-    setForm({
-      type: "expense",
-      amount: "",
-      category: "",
-      detail: "",
-      date: "",
-      account: "",
-      note: "",
-    });
+    // reset form (เฉพาะ add)
+    if (!editId) {
+      setForm({
+        type: "expense",
+        amount: "",
+        category: "",
+        detail: "",
+        date: "",
+        account: "",
+        note: "",
+      });
+    }
   };
 
   return (
@@ -63,7 +100,9 @@ function TransactionForm({ fetchTransactions }) {
       onSubmit={handleSubmit}
       className="bg-white p-5 rounded-2xl shadow mt-6"
     >
-      <h2 className="text-lg font-bold mb-4">Add Transaction</h2>
+      <h2 className="text-lg font-bold mb-4">
+        {editId ? "Edit Transaction" : "Add Transaction"}
+      </h2>
 
       {/* Type */}
       <select
@@ -114,7 +153,7 @@ function TransactionForm({ fetchTransactions }) {
         className="w-full mb-3 p-2 border rounded"
       />
 
-      {/* 🔥 Date */}
+      {/* Date */}
       <input
         type="date"
         name="date"
@@ -123,7 +162,7 @@ function TransactionForm({ fetchTransactions }) {
         className="w-full mb-3 p-2 border rounded"
       />
 
-      {/* 🔥 Account */}
+      {/* Account */}
       <input
         type="text"
         name="account"
@@ -133,7 +172,7 @@ function TransactionForm({ fetchTransactions }) {
         className="w-full mb-3 p-2 border rounded"
       />
 
-      {/* 🔥 Note */}
+      {/* Note */}
       <input
         type="text"
         name="note"
@@ -147,7 +186,7 @@ function TransactionForm({ fetchTransactions }) {
         type="submit"
         className="bg-blue-500 text-white px-4 py-2 rounded w-full"
       >
-        Add
+        {editId ? "Update" : "Add"}
       </button>
     </form>
   );

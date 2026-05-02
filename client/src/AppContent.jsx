@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { ToastContainer } from "react-toastify";
 
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -12,7 +13,9 @@ import AddTransaction from "./pages/AddTransaction";
 import Transactions from "./pages/Transactions";
 import AddCategory from "./pages/AddCategory";
 import Categories from "./pages/Categories";
+import EditTransaction from "./pages/EditTransaction";
 
+import "react-toastify/dist/ReactToastify.css";
 import API from "./api";
 
 function AppContent() {
@@ -52,10 +55,12 @@ function AppContent() {
   if (loading) return <Loader />;
 
   return (
-    <>
-      <Navbar setIsLoggedIn={setIsLoggedIn} isLoggedIn={isLoggedIn} />
+  <>
+    <Navbar setIsLoggedIn={setIsLoggedIn} isLoggedIn={isLoggedIn} />
 
-      <Routes>
+    <ToastContainer position="top-right" autoClose={2000} />
+
+    <Routes>
         <Route
           path="/"
           element={
@@ -111,6 +116,15 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+  path="/edit/:id"
+  element={
+    <ProtectedRoute>
+      <EditTransaction fetchTransactions={fetchTransactions} />
+    </ProtectedRoute>
+  }
+/>
       </Routes>
     </>
   );

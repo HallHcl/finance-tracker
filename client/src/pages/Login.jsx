@@ -1,6 +1,7 @@
 import { useState } from "react";
 import API from "../api";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
 function Login({ setIsLoggedIn }) {
   const [form, setForm] = useState({
@@ -24,12 +25,24 @@ function Login({ setIsLoggedIn }) {
       const res = await API.post("/auth/login", form);
 
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      setIsLoggedIn(true); // 🔥 ตัวแก้บัค
+      toast.success("เข้าสู่ระบบสำเร็จ");
 
-      navigate("/"); // ไป dashboard
+      setIsLoggedIn(true);
+
+      setTimeout(() => {
+        navigate("/");
+      }, 1000);
     } catch (err) {
-      alert("Login failed");
+      // 🔥 แยก error (รองรับ backend ในอนาคต)
+      if (err.response?.data?.message === "User not found") {
+        toast.error("อีเมลไม่พบในระบบ");
+      } else if (err.response?.data?.message === "Invalid password") {
+        toast.error("รหัสผ่านไม่ถูกต้อง");
+      } else {
+        toast.error("เข้าสู่ระบบไม่สำเร็จ");
+      }
     }
   };
 
