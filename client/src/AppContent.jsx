@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ToastContainer } from "react-toastify";
 
 import Navbar from "./components/Navbar";
@@ -27,30 +27,55 @@ function AppContent() {
 
   const location = useLocation(); // ✅ ถูกที่แล้ว
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async (filters = {}) => {
     try {
-      const res = await API.get("/transactions");
+      const params = new URLSearchParams();
+
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
+      if (filters.min) params.append("min", filters.min);
+      if (filters.max) params.append("max", filters.max);
+      if (filters.search) params.append("search", filters.search);
+
+      const query = params.toString();
+
+      const res = await API.get(
+        query ? `/transactions?${query}` : "/transactions"
+      );
+
       setTransactions(res.data);
     } catch (err) {
       console.error(err);
     }
-  };
+  }, []);
 
+  // ล้างข้อมูลเมื่อ logout
   useEffect(() => {
+    if (!isLoggedIn) {
+      setTransactions([]);
+    }
+  }, [isLoggedIn]);
+
+  // โหลดข้อมูล transactions เมื่อ login
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
     setLoading(true);
-
     const load = async () => {
-      if (isLoggedIn) {
-        await fetchTransactions();
-      }
-
+      await fetchTransactions();
       setTimeout(() => {
         setLoading(false);
       }, 500);
     };
-
     load();
-  }, [location.pathname]);
+  }, [isLoggedIn]);
+
+  // Reload transactions เมื่อ navigate ไปหน้า home (/)
+  useEffect(() => {
+    if (location.pathname === "/" && isLoggedIn) {
+      fetchTransactions();
+    }
+  }, [location.pathname, isLoggedIn, fetchTransactions]);
 
   if (loading) return <Loader />;
 

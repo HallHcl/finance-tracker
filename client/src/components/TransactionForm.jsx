@@ -11,6 +11,10 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
     date: "",
     account: "",
     note: "",
+
+    // 🔥 NEW (STEP 5)
+    isRecurring: false,
+    frequency: "monthly",
   });
 
   const [categories, setCategories] = useState([]);
@@ -40,14 +44,21 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
         date: editData.date ? editData.date.split("T")[0] : "",
         account: editData.account || "",
         note: editData.note || "",
+
+        // 🔥 IMPORTANT (fix recurring edit)
+        isRecurring: editData.isRecurring || false,
+        frequency: editData.frequency || "monthly",
       });
     }
   }, [editData]);
 
+  // 🔥 FIX: รองรับ checkbox
   const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
     setForm({
       ...form,
-      [e.target.name]: e.target.value,
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
@@ -58,11 +69,9 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
 
     try {
       if (editId) {
-        // 🔥 UPDATE
         await API.put(`/transactions/${editId}`, form);
         toast.success("Updated successfully");
       } else {
-        // 🔥 CREATE
         await API.post("/transactions", form);
         toast.success("Added successfully");
       }
@@ -74,14 +83,10 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
     } catch (err) {
       console.error(err);
 
-      if (editId) {
-        toast.error("Update failed");
-      } else {
-        toast.error("Add failed");
-      }
+      toast.error(editId ? "Update failed" : "Add failed");
     }
 
-    // reset form (เฉพาะ add)
+    // 🔥 reset form (ต้อง reset recurring ด้วย)
     if (!editId) {
       setForm({
         type: "expense",
@@ -91,6 +96,8 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
         date: "",
         account: "",
         note: "",
+        isRecurring: false,
+        frequency: "monthly",
       });
     }
   };
@@ -181,6 +188,30 @@ function TransactionForm({ fetchTransactions, editData, editId, onSuccess }) {
         onChange={handleChange}
         className="w-full mb-3 p-2 border rounded"
       />
+
+      {/* 🔥 STEP 5: RECURRING */}
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          type="checkbox"
+          name="isRecurring"
+          checked={form.isRecurring}
+          onChange={handleChange}
+        />
+        <label>Recurring</label>
+      </div>
+
+      {form.isRecurring && (
+        <select
+          name="frequency"
+          value={form.frequency}
+          onChange={handleChange}
+          className="w-full mb-3 p-2 border rounded"
+        >
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      )}
 
       <button
         type="submit"

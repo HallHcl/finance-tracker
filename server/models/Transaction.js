@@ -5,18 +5,49 @@ const transactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
-  type: String,
-  amount: Number,
+
+  type: {
+    type: String,
+    required: true,
+  },
+
+  amount: {
+    type: Number,
+    required: true,
+  },
+
   category: String,
   detail: String,
 
-  // 🔥 เพิ่มใหม่
   date: {
     type: Date,
     default: Date.now,
   },
+
   account: String,
   note: String,
-});
+
+  // 🔥 RECURRING SYSTEM
+  isRecurring: {
+    type: Boolean,
+    default: false,
+  },
+
+  frequency: {
+    type: String,
+    enum: ["daily", "weekly", "monthly", "yearly"],
+  },
+
+  nextRun: {
+    type: Date,
+  },
+
+  // 🔥 คุมเปิด/ปิด recurring
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+
+}, { timestamps: true });
 
 module.exports = mongoose.model("Transaction", transactionSchema);

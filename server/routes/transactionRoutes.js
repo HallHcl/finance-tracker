@@ -1,72 +1,35 @@
 const express = require("express");
 const router = express.Router();
-const Transaction = require("../models/Transaction");
 const auth = require("../middleware/authMiddleware");
+const controller = require("../controllers/transactionController");
 
-// 🔐 GET (เฉพาะของ user)
-router.get("/", auth, async (req, res) => {
-  const transactions = await Transaction.find({
-    user: req.user.id,
-  });
+// =========================
+// SUMMARY
+// =========================
+router.get("/summary", auth, controller.getSummary);
 
-  res.json(transactions);
-});
+// =========================
+// EXPORT CSV
+// =========================
+router.get("/export/summary", auth, controller.exportSummary);
 
+// =========================
+// PAGINATION (MAIN)
+// =========================
+router.get("/", auth, controller.getTransactions);
 
-// 🔐 POST
-router.post("/", auth, async (req, res) => {
-  const newTransaction = new Transaction({
-    ...req.body,
-    user: req.user.id,
-  });
+// =========================
+// CRUD
+// =========================
+router.post("/", auth, controller.createTransaction);
+router.get("/:id", auth, controller.getTransaction);
+router.put("/:id", auth, controller.updateTransaction);
+router.delete("/:id", auth, controller.deleteTransaction);
 
-  await newTransaction.save();
-
-  res.json(newTransaction);
-});
-
-
-// 🔐 DELETE
-router.delete("/:id", auth, async (req, res) => {
-  await Transaction.findOneAndDelete({
-    _id: req.params.id,
-    user: req.user.id,
-  });
-
-  res.json({ message: "Deleted" });
-});
-
-// 🔐 GET ONE (เอาไป pre-fill)
-router.get("/:id", auth, async (req, res) => {
-  const transaction = await Transaction.findOne({
-    _id: req.params.id,
-    user: req.user.id,
-  });
-
-  if (!transaction) {
-    return res.status(404).json({ message: "Not found" });
-  }
-
-  res.json(transaction);
-});
-
-
-// 🔐 UPDATE
-router.put("/:id", auth, async (req, res) => {
-  const updated = await Transaction.findOneAndUpdate(
-    {
-      _id: req.params.id,
-      user: req.user.id,
-    },
-    req.body,
-    { new: true }
-  );
-
-  if (!updated) {
-    return res.status(404).json({ message: "Not found" });
-  }
-
-  res.json(updated);
-});
+// =========================
+// RECURRING
+// =========================
+router.post("/:id/skip", auth, controller.skipRecurring);
+router.post("/:id/stop", auth, controller.stopRecurring);
 
 module.exports = router;

@@ -1,211 +1,119 @@
-import { useState, useEffect } from "react";
-import API from "../api";
-import { toast } from "react-toastify";
+﻿import { useState, useMemo } from "react";
 import SummaryCard from "../components/SummaryCard";
 import TransactionList from "../components/TransactionList";
 
-// 🔥 import chart
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, Legend
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Legend,
 } from "recharts";
 
-function Dashboard({ transactions }) {
-
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  // 🔥 budget
+function Dashboard({ transactions = [] }) {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
   const [budget, setBudget] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
 
-  // 🔥 debounce
-  const [debounceTimer, setDebounceTimer] = useState(null);
+  const safeTransactions = Array.isArray(transactions)
+    ? transactions
+    : transactions?.data || [];
 
-  // 🔥 โหลด budget
-  useEffect(() => {
-    const fetchBudget = async () => {
-      try {
-        const res = await API.get("/auth/budget");
-        setBudget(res.data.budget ? String(res.data.budget) : "");
-      } catch (err) {
-        console.error("Fetch budget error:", err);
-      }
-    };
+  const filtered = useMemo(() => {
+    if (!selectedMonth) return safeTransactions;
 
-    fetchBudget();
-  }, []);
+    return safeTransactions.filter((t) => {
+      const d = new Date(t.date);
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return m === selectedMonth;
+    });
+  }, [safeTransactions, selectedMonth]);
 
-  // 🔥 debounce update
-  const updateBudget = (value) => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
+  const summary = useMemo(() => {
+    let income = 0;
+    let expense = 0;
 
-    const timer = setTimeout(async () => {
-      try {
-        await API.put("/auth/budget", {
-          budget: Number(value),
-        });
-
-        toast.success("Budget saved");
-      } catch (err) {
-        console.error("Update budget error:", err);
-        toast.error("Failed to save budget");
-      }
-    }, 800);
-
-    setDebounceTimer(timer);
-  };
-
-  const income = transactions
-    .filter(t => t.type === "income")
-    .reduce((acc, t) => acc + Number(t.amount), 0);
-
-  const expense = transactions
-    .filter(t => t.type === "expense")
-    .reduce((acc, t) => acc + Number(t.amount), 0);
-
-  const balance = income - expense;
-
-  const percent =
-    Number(budget) > 0 ? (expense / Number(budget)) * 100 : 0;
-
-  const monthly = {};
-
-  transactions.forEach(t => {
-    const month = new Date(t.date).toLocaleString("default", {
-      month: "short",
-      year: "numeric",
+    filtered.forEach((t) => {
+      const amt = Number(t.amount) || 0;
+      if (t.type === "income") income += amt;
+      else expense += amt;
     });
 
-    if (!monthly[month]) {
-      monthly[month] = { income: 0, expense: 0 };
-    }
+    return {
+      income,
+      expense,
+      balance: income - expense,
+    };
+  }, [filtered]);
 
-    if (t.type === "income") {
-      monthly[month].income += Number(t.amount);
-    } else {
-      monthly[month].expense += Number(t.amount);
-    }
-  });
+  const topCategories = useMemo(() => {
+    const map = {};
 
-  const chartData = Object.entries(monthly).map(([month, data]) => ({
-    month,
-    income: data.income,
-    expense: data.expense,
-  }));
+    filtered.forEach((t) => {
+      if (t.type !== "expense") return;
+      map[t.category] = (map[t.category] || 0) + (Number(t.amount) || 0);
+    });
 
-  const exportCSV = () => {
-    const headers = [
-      "Date",
-      "Type",
-      "Category",
-      "Detail",
-      "Amount",
-      "Account",
-      "Note",
-    ];
+    return Object.entries(map)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [filtered]);
 
-    const rows = transactions.map((t) => [
-      new Date(t.date).toLocaleDateString(),
-      t.type,
-      t.category,
-      t.detail,
-      t.amount,
-      t.account,
-      t.note,
-    ]);
+  const chartData = useMemo(() => {
+    const map = {};
 
-    const csvContent =
-      [headers, ...rows]
-        .map((e) => e.join(","))
-        .join("\n");
+    filtered.forEach((t) => {
+      const month = new Date(t.date).toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      });
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
+      if (!map[month]) map[month] = { income: 0, expense: 0 };
+      const amt = Number(t.amount) || 0;
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "transactions.csv";
-    a.click();
-  };
+      if (t.type === "income") map[month].income += amt;
+      else map[month].expense += amt;
+    });
+
+    return Object.entries(map).map(([month, v]) => ({
+      month,
+      ...v,
+    }));
+  }, [filtered]);
 
   return (
-    <div className="p-6 space-y-6">
-
-      {/* Greeting */}
-      {user && (
-        <h1 className="text-2xl font-bold">
-          Hello, {user.firstName} {user.lastName}
-        </h1>
-      )}
-
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <SummaryCard title="Balance" amount={balance} color="text-green-500" />
-        <SummaryCard title="Income" amount={income} color="text-blue-500" />
-        <SummaryCard title="Expense" amount={expense} color="text-red-500" />
-      </div>
-
-      {/* Budget */}
-      <div className="bg-white p-4 rounded-xl shadow space-y-3">
-        <h2 className="font-bold">Monthly Budget</h2>
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">👋 Welcome {user?.firstName}</h1>
+          <p className="text-sm text-gray-500">Review your latest financial overview.</p>
+        </div>
 
         <input
-          type="number"
-          placeholder="Enter budget"
-          value={budget}
-          onChange={(e) => {
-            setBudget(e.target.value);
-            updateBudget(e.target.value);
-          }}
-          className="w-full p-2 border rounded"
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="border p-2 rounded"
         />
-
-        {Number(budget) > 0 && (
-          <>
-            <div className="w-full bg-gray-200 rounded h-4 overflow-hidden">
-              <div
-                className={`h-4 ${
-                  percent < 80
-                    ? "bg-green-500"
-                    : percent < 100
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
-                }`}
-                style={{ width: `${Math.min(percent, 100)}%` }}
-              />
-            </div>
-
-            <p className="text-sm">
-              {expense} / {budget} ({percent.toFixed(1)}%)
-            </p>
-
-            {percent >= 80 && percent < 100 && (
-              <p className="text-yellow-600">⚠️ Approaching budget limit</p>
-            )}
-
-            {percent >= 100 && (
-              <p className="text-red-600">❌ Budget exceeded</p>
-            )}
-          </>
-        )}
       </div>
 
-      {/* Export */}
-      <button
-        onClick={exportCSV}
-        className="bg-black text-white px-4 py-2 rounded"
-      >
-        Export CSV
-      </button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <SummaryCard title="Balance" amount={summary.balance} color="text-green-600" />
+        <SummaryCard title="Income" amount={summary.income} color="text-blue-600" />
+        <SummaryCard title="Expense" amount={summary.expense} color="text-red-600" />
+      </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        <div className="bg-white p-4 rounded-xl shadow">
+        <div className="bg-white p-5 rounded-2xl shadow">
           <h2 className="font-bold mb-3">Monthly Overview</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={250}>
             <BarChart data={chartData}>
               <XAxis dataKey="month" />
               <YAxis />
@@ -217,10 +125,10 @@ function Dashboard({ transactions }) {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow">
+        <div className="bg-white p-5 rounded-2xl shadow">
           <h2 className="font-bold mb-3">Trend</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
@@ -232,11 +140,36 @@ function Dashboard({ transactions }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-
       </div>
 
-      <TransactionList transactions={transactions} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-5 rounded-2xl shadow">
+          <h2 className="font-bold mb-3">🔥 Top Expenses</h2>
+          {topCategories.length === 0 ? (
+            <p className="text-gray-400">No data</p>
+          ) : (
+            <ul className="space-y-2">
+              {topCategories.map((c, i) => (
+                <li key={i} className="flex justify-between">
+                  <span>{c.category}</span>
+                  <span className="text-red-500 font-bold">฿ {c.total}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
+        <div className="bg-white p-5 rounded-2xl shadow">
+          <h2 className="font-bold mb-3">📌 Quick Insight</h2>
+          <p>Income: ฿{summary.income}</p>
+          <p>Expense: ฿{summary.expense}</p>
+          <p className="font-bold">Net: ฿{summary.balance}</p>
+        </div>
+      </div>
+
+      <div className="bg-white p-5 rounded-2xl shadow">
+        <TransactionList transactions={filtered} />
+      </div>
     </div>
   );
 }
